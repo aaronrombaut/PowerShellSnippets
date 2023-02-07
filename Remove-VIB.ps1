@@ -30,8 +30,8 @@ foreach ($myVMHost in $myVMHosts)
         Write-host -ForegroundColor Yellow "VIB Removed"
     } else {
         Write-Host -ForegroundColor Red -NoNewline "Warning: "
-        Write-Host -NoNewLine "VIB, "
+        Write-Host -NoNewLine "The VIB, "
         Write-Host -ForegroundColor Yellow -NoNewLine $vibName
-        Write-Host " does not exist!"
+        Write-Host ", does not exist!"
     }
 }
