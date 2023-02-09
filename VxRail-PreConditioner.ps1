@@ -7,6 +7,7 @@
 
 $myVMHosts = Get-VMHost | Sort-Object -Property Name
 
+$level = "lockdownDisabled"
 $vibName = "dod-esxi70-stig-rd"
 $serviceKeys = "TSM-SSH", "sfcbd-watchdog" # comma-separated list
 
@@ -45,6 +46,10 @@ foreach ($myVMHost in $myVMHosts)
         Get-VMHost -Name $myVMHost | Get-VMHostService | Where-Object {$_.Key -eq $serviceKey} | Set-VMHostService -Policy On
         Get-VMHost -Name $myVMHost | Get-VMHostService | Where-Object {$_.Key -eq $serviceKey} | Start-VMHostService
     }
+
+    ## Take the host out of Lockdown mode
+    $lockdown = Get-View (Get-VMHost -Name $myVMHost | Get-View).ConfigManager.HostAccessManager
+    $lockdown.ChangeLockdownMode($level)
 
     Write-Output ""
     Write-Output ""
