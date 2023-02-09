@@ -7,6 +7,7 @@
 
 $myVMHosts = Get-VMHost | Sort-Object -Property Name
 
+$level = "lockdownNormal"  #OR "lockdownStrict"
 $serviceKeys = "TSM-SSH" # Comma-separated list
 
 ## Do not edit below this line...
@@ -22,6 +23,10 @@ foreach ($myVMHost in $myVMHosts)
         Get-VMHost -Name $myVMHost | Get-VMHostService | Where-Object {$_.Key -eq $serviceKey} | Set-VMHostService -Policy Off
         Get-VMHost -Name $myVMHost | Get-VMHostService | Where-Object {$_.Key -eq $serviceKey} | Stop-VMHostService
     }
+
+    ## Place the host into Lockdown mode
+    $lockdown = Get-View (Get-VMHost -Name $myVMHost | Get-View).ConfigManager.HostAccessManager
+    $lockdown.ChangeLockdownMode($level)
 
     Write-Output ""
     Write-Output ""
