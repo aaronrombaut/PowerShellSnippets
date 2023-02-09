@@ -13,7 +13,6 @@ $dryrun = "true"    # true | false
 # Do not edit below this line...
 foreach ($myVMHost in $myVMHosts)
 {
-    $vmHost = Get-VMHost -Name $myVMHost
     $esxcli = Get-EsxCli -VMHost $myVMHost -V2
 
     $vmHostVIBs = ($esxcli.software.vib.list.invoke()).Name
