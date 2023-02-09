@@ -12,7 +12,6 @@ $newPassword = 'VMware1!'
 # Do not edit below this line...
 foreach ($myVMHost in $myVMHosts)
 {
-    $vmHost = Get-VMHost -Name $myVMHost
     $esxcli = Get-EsxCli -VMHost $vmHost -V2
 
     $vmHostUsers = ($esxcli.system.account.list.invoke()).UserId
