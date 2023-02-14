@@ -9,6 +9,7 @@ $myVMHosts = Get-VMHost | Sort-Object -Property Name
 
 $level = "lockdownDisabled"
 $vibName = "dod-esxi70-stig-rd"
+$dryrun = "true" # true | false
 $serviceKeys = "TSM-SSH", "sfcbd-watchdog" # comma-separated list
 
 ## Do not edit below this line...
