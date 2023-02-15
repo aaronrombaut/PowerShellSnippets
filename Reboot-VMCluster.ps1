@@ -1,36 +1,44 @@
 ###################
 ## Reboot-VMCluster.ps1
-## Script reboots each ESXi server in the cluster one at a time
+## Script checks for vSAN enabled cluster and reboots each ESXi host
+## in the cluster one at a time accordingly
 ###################
 
-# Set Cluster name and time to sleep
+# Set variables
 $ClusterName = "Cluster-A"
-$timeToSleepDown = 5
-$timeToSleepReboot = 120
+$TimeToSleepDown = 5    # How long to wait before showing ESXi host as down
+$TimeToSleepReboot = 120    # How long to wait before checking ESXi host connection status
+$VsanEnabled = (Get-VsanClusterConfiguration -Cluster $ClusterName).VsanEnabled
+$VsanDataMigrationMode = "EnsureAccessibility" # EnsureAccessibility | Full | NoDataMigration
 
 ##################
-## Get Server Objects from the cluster
+## Get ESXi host Objects from the cluster
 ##################
-# Get VMware Server Object based on name passed as arg
 $MyVMHosts = @(Get-Cluster $ClusterName | Get-VMHost | Sort-Object -Property Name)
 
 ##################
-## Reboot ESXi Server Function
-## Puts an ESXI server in maintenance mode, reboots the server and the puts it back online
-## Requires fully automated DRS and enough HA capacity to take a host off line
+## Reboot ESXi host Function
+## Puts an ESXI host in Maintenance Mode, reboots the server and then puts it back online
+## Requires fully automated DRS and enough HA capacity to take a host off-line
 ##################
-Function RebootESXiServer ($MyVMHost) {
+Function RebootESXiHost($MyVMHost) {
     # Get Server name
     $ServerName = $MyVMHost.Name
 
     # Put server in maintenance mode
     Write-Host "#### Rebooting $ServerName ####"
     Write-Host "Entering Maintenance Mode"
-    Set-VMhost $MyVMHost -State maintenance -Evacuate | Out-Null
+    if ($VsanEnabled) {
+        Write-Host "ESXi host is vSAN Enabled"
+        Set-VMhost -VMHost $MyVMHost -State Maintenance -Evacuate -VsanDataMigrationMode $VsanDataMigrationMode | Out-Null
+    } else {
+        Write-Host "ESXi host is not vSAN Enabled"
+        Set-VMhost -VMHost $MyVMHost -State Maintenance -Evacuate | Out-Null
+    }
 
     $ServerState = (Get-VMHost $MyVMHost).ConnectionState
     if ($ServerState -ne "Maintenance") {
-        Write-Host "Server did not enter maintanenace mode. Cancelling remaining servers"
+        Write-Host "ESXi host did not enter Maintenance Mode. Canceling remaining servers..."
         Exit
     }
     Write-Host -NoNewline "ESXi host, $ServerName, is in "
@@ -40,7 +48,7 @@ Function RebootESXiServer ($MyVMHost) {
     Write-Host "Rebooting..."
     Restart-VMHost $MyVMHost -confirm:$false | Out-Null
 
-    # Wait for Server to show as down
+    # Wait for ESXi host to show as down
     do {
         Start-Sleep -Seconds $timeToSleepDown
         $ServerState = (Get-VMHost $MyVMHost).ConnectionState
@@ -65,12 +73,12 @@ Function RebootESXiServer ($MyVMHost) {
     Write-Host "$ServerName is back up. Took $RebootTime minutes"
 
     # Exit maintenance mode
-    Write-Host "Exiting Maintenance mode"
+    Write-Host "Exiting Maintenance Mode"
     Set-VMhost $MyVMHost -State Connected | Out-Null
     Write-Host "#### Reboot Complete ####"
     Write-Host ""
 }
 
 foreach ($MyVMHost in $MyVMHosts) {
-    RebootESXiServer ($MyVMHost)
+    RebootESXiHost ($MyVMHost)
 }
