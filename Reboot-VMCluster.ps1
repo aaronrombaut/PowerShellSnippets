@@ -1,95 +1,76 @@
 ###################
-## reboot-vmcluster.ps1 
-## Supply the hostname/FQDN for you vcenter server and the name of the cluster you want rebooted
+## Reboot-VMCluster.ps1
 ## Script reboots each ESXi server in the cluster one at a time
 ###################
-##################
-## Args
-##################
-# Check to make sure an argument was passed
-if ($args.count -ne 2) {
-Write-Host “Usage: reboot-vmcluster.ps1 ”
-exit
-}
 
-# Set vCenter and Cluster name from Arg
-$vCenterServer = $args[0]
-$ClusterName = $args[1]
-
-##################
-## Connect to infrastructure
-##################
-Connect-VIServer -Server $vCenterServer | Out-Null
+# Set Cluster name and time to sleep
+$ClusterName = "Cluster-A"
+$timeToSleepDown = 5
+$timeToSleepReboot = 120
 
 ##################
 ## Get Server Objects from the cluster
 ##################
 # Get VMware Server Object based on name passed as arg
-$ESXiServers = @(get-cluster $ClusterName | get-vmhost)
+$MyVMHosts = @(Get-Cluster $ClusterName | Get-VMHost | Sort-Object -Property Name)
 
 ##################
 ## Reboot ESXi Server Function
 ## Puts an ESXI server in maintenance mode, reboots the server and the puts it back online
 ## Requires fully automated DRS and enough HA capacity to take a host off line
 ##################
-Function RebootESXiServer ($CurrentServer) {
-# Get Server name
-$ServerName = $CurrentServer.Name
+Function RebootESXiServer ($MyVMHost) {
+    # Get Server name
+    $ServerName = $MyVMHost.Name
 
-# Put server in maintenance mode
-Write-Host “#### Rebooting $ServerName ####”
-Write-Host “Entering Maintenance Mode”
-Set-VMhost $CurrentServer -State maintenance -Evacuate | Out-Null
+    # Put server in maintenance mode
+    Write-Host "#### Rebooting $ServerName ####"
+    Write-Host "Entering Maintenance Mode"
+    Set-VMhost $MyVMHost -State maintenance -Evacuate | Out-Null
 
-$ServerState = (get-vmhost $ServerName).ConnectionState
-if ($ServerState -ne “Maintenance”)
-{
-Write-Host “Server did not enter maintanenace mode. Cancelling remaining servers”
-Disconnect-VIServer -Server $vCenterServer -Confirm:$False
-Exit
-}
-Write-Host “$ServerName is in Maintenance Mode”
+    $ServerState = (Get-VMHost $MyVMHost).ConnectionState
+    if ($ServerState -ne "Maintenance") {
+        Write-Host "Server did not enter maintanenace mode. Cancelling remaining servers"
+        Exit
+    }
+    Write-Host -NoNewline "ESXi host, $ServerName, is in "
+    Write-Host -ForegroundColor Yellow "Maintenance Mode"
 
-# Reboot blade
-Write-Host “Rebooting”
-Restart-VMHost $CurrentServer -confirm:$false | Out-Null
+    # Reboot blade
+    Write-Host "Rebooting..."
+    Restart-VMHost $MyVMHost -confirm:$false | Out-Null
 
-# Wait for Server to show as down
-do {
-sleep 15
-$ServerState = (get-vmhost $ServerName).ConnectionState
-}
-while ($ServerState -ne “NotResponding”)
-Write-Host “$ServerName is Down”
+    # Wait for Server to show as down
+    do {
+        Start-Sleep -Seconds $timeToSleepDown
+        $ServerState = (Get-VMHost $MyVMHost).ConnectionState
+    }
+    while ($ServerState -ne "NotResponding")
+    Write-Host -NoNewline "ESXi host, $ServerName, is "
+    Write-Host -ForegroundColor Red "Down"
+    Write-Host "(This is normal for a reboot!)"
 
-$j=1
-# Wait for server to reboot
-do {
-sleep 120
-$ServerState = (get-vmhost $ServerName).ConnectionState
-Write-Host “… Waiting for reboot”
-$j++
-}
-while ($ServerState -ne “Maintenance”)
-$RebootTime=$j/2
-Write-Host “$ServerName is back up. Took $RebootTime minutes”
+    $timeBeforeReboot = Get-Date
+    $j = 1
+    # Wait for server to reboot
+    do {
+        Start-Sleep -Seconds $timeToSleepReboot
+        $ServerState = (Get-VMHost $MyVMHost).ConnectionState
+        Write-Host "...waiting for reboot"
+        $j++
+    }
+    while ($ServerState -ne "Maintenance")
+    $timeAfterReboot = Get-Date
+    $RebootTime = $(New-TimeSpan -Start $timeBeforeReboot -End $timeAfterReboot).Minutes
+    Write-Host "$ServerName is back up. Took $RebootTime minutes"
 
-# Exit maintenance mode
-Write-Host “Exiting Maintenance mode”
-Set-VMhost $CurrentServer -State Connected | Out-Null
-Write-Host “#### Reboot Complete####”
-Write-Host “”
-}
-
-##################
-## MAIN
-##################
-foreach ($ESXiServer in $ESXiServers) {
-RebootESXiServer ($ESXiServer)
+    # Exit maintenance mode
+    Write-Host "Exiting Maintenance mode"
+    Set-VMhost $MyVMHost -State Connected | Out-Null
+    Write-Host "#### Reboot Complete ####"
+    Write-Host ""
 }
 
-##################
-## Cleanup
-##################
-# Close vCenter connection
-Disconnect-VIServer -Server $vCenterServer -Confirm:$False
+foreach ($MyVMHost in $MyVMHosts) {
+    RebootESXiServer ($MyVMHost)
+}
