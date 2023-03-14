@@ -5,14 +5,14 @@
 # $myCred = Get-Credential
 # Connect-VIServer -Server $myVCSA -Credential $myCred
 
-$myVMHosts = Get-VMHost | Sort-Object
+$VMHosts = Get-VMHost | Sort-Object
 $vmHostUserId = 'sshuser'
 $newPassword = 'VMware1!'
 
 # Do not edit below this line...
-foreach ($myVMHost in $myVMHosts)
+foreach ($VMHost in $VMHosts)
 {
-    $esxcli = Get-EsxCli -VMHost $vmHost -V2
+    $esxcli = Get-EsxCli -VMHost $VMHost -V2
 
     $vmHostUsers = ($esxcli.system.account.list.invoke()).UserId
 
@@ -33,3 +33,5 @@ foreach ($myVMHost in $myVMHosts)
         Write-Host " does not exist!"
     }
 }
+
+Disconnect-VIServer -Server $myVCSA
